@@ -73,6 +73,10 @@ func SendFile(conn *net.UDPConn, addr *net.UDPAddr, filename string) (err error)
 			return err
 		}
 
+		///////[ ACK PACKET ]/////////
+		// [ 2 bytes ] [ 2 bytes ] //
+		// [ OP CODE ] [ BLOCK # ] //
+		////////////////////////////
 		var ack []byte = make([]byte, 4)
 		if _, _, err = conn.ReadFromUDP(ack); err != nil {
 			return err
