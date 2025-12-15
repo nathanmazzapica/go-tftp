@@ -2,6 +2,7 @@ package gotftp
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"net"
 	"net/http"
@@ -100,7 +101,6 @@ func Serve(options TFTPOptions) (quit chan bool, err error) {
 		var (
 			buffer   []byte = make([]byte, 1024)
 			filename string
-			opcode   int
 			log      *logger.Logger = logger.NewLogger().SetPrefix("[TFTP]", logger.BoldPurple).IncludeTimestamp()
 		)
 
@@ -132,13 +132,17 @@ func Serve(options TFTPOptions) (quit chan bool, err error) {
 				// reset deadline
 				conn.SetReadDeadline(time.Time{})
 
+				// Smallest valid packet possible is 4 bytes (ACK: [opcode][block#])
 				if bytesRead < 4 {
-					log.Errorf("Invalid request from %s\n", clientAddr.String())
+					log.Errorf("dropping invalid packet: %v from %s\n", buffer, clientAddr.String())
 					continue
 				}
 
-				opcode = int(buffer[1])
+				// TODO: Move to getOPCODE?
+				// Why?: Testing, clarity
+				opcode := binary.BigEndian.Uint16(buffer[:2])
 
+				// TODO: switch case statement
 				if opcode == OPCODE_RRQ {
 					if filename, _, err = ParseRQQRequest(buffer[:bytesRead]); err != nil {
 						log.Errorf("Failed to parse RRQ request for %s: %s\n", clientAddr.String(), err.Error())
