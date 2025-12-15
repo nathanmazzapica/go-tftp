@@ -3,7 +3,7 @@ package gotftp
 const (
 	BLOCK_SIZE = 512
 	// Read Request
-	OPCODE_RRQ = iota
+	OPCODE_RRQ uint16 = iota
 	// Write Request
 	OPCODE_WRQ
 	// Data
