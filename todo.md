@@ -81,3 +81,21 @@ Likewise, a client source code would only write the TFTP payload, the kernel wou
 data packet of < 512 bytes = transfer over
 
 [RFC 1350](https://datatracker.ietf.org/doc/html/rfc1350#autoid-2)
+
+## Intended usage (subject to change)
+
+```go
+// pseudocode-ish
+
+server, err := gotftp.NewTFTPServer(&options{...})
+if err != nil {
+    panic(err)
+}
+
+// server.ListenAndServer() is a blocking call, much like net/http.ListenAndServe()
+err = server.ListenAndServe()
+```
+
+
+
+
