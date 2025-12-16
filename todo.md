@@ -1,17 +1,17 @@
 # TODO:
 - [ ] Parse incoming packet
-    - [ ] Get opcode
+    - [x] Get opcode
     - [ ] Get options / args
-      -  [ ] RRQ/WRQ
-          - [ ] Filename (string)
-          - [ ] terminator
-          - [ ] Mode     (string)
-          - [ ] terminator
+    - [ ] Route to appropriate handler
 - [ ] Handle read operations 
 - [ ] Handle write operations
 - [ ] Handle data transfer
+    - [x] Build data packet
+    - [ ] Write data from file to buffer
 - [ ] Handle acks
+    - [x] Build ack packet
 - [ ] Handle errors
+    - [x] Build error packet
 
 # Notes
 
@@ -51,6 +51,7 @@
           ----------------------------------------
    ERROR | 05    |  ErrorCode |   ErrMsg   |   0  |
           ----------------------------------------
+          `Length = 5 + len(ErrMsg)`
 
 #### Error Codes
 | Value | Meaning                                   |
@@ -81,8 +82,7 @@ Likewise, a client source code would only write the TFTP payload, the kernel wou
 data packet of < 512 bytes = transfer over
 
 [RFC 1350](https://datatracker.ietf.org/doc/html/rfc1350#autoid-2)
-
-## Intended usage (subject to change)
+zx;lcxkxzckjzkcjklcjzxklcjxzkcjxcjzxlkcjzxklcjzxkcjzxcjzxlcjzxlkcjzxlkcjzxlcjzxkcjzxlkcjzxklcjzxkcjzxlcjzxkl
 
 ```go
 // pseudocode-ish
@@ -98,4 +98,4 @@ err = server.ListenAndServe()
 
 
 
-
+  

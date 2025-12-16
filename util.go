@@ -1,22 +1,14 @@
 package gotftp
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"os"
 )
 
-func SendError(conn *net.UDPConn, addr *net.UDPAddr, errCode int, errMsg string) (err error) {
-	var buffer []byte = make([]byte, 5+len(errMsg))
-
-	buffer[0] = 0
-	buffer[1] = OPCODE_ERROR
-	buffer[2] = 0
-	buffer[3] = byte(errCode)
-	copy(buffer[4:], errMsg)
-	buffer[4+len(errMsg)] = 0
-
-	_, err = conn.WriteToUDP(buffer, addr)
+func SendError(conn *net.UDPConn, addr *net.UDPAddr, packet []byte) (err error) {
+	_, err = conn.WriteToUDP(packet, addr)
 	return err
 }
 
@@ -46,7 +38,8 @@ func SendFile(conn *net.UDPConn, addr *net.UDPAddr, filename string) (err error)
 	var file *os.File
 
 	if file, err = os.Open(filename); err != nil {
-		SendError(conn, addr, 1, "File not found")
+		errPacket := buildErrorPacket(6, "File not found")
+		SendError(conn, addr, errPacket)
 		return err
 	}
 	defer file.Close()
@@ -62,16 +55,11 @@ func SendFile(conn *net.UDPConn, addr *net.UDPAddr, filename string) (err error)
 			return err
 		}
 
-		var dataPacket []byte = make([]byte, 4+bytesRead)
-		dataPacket[0] = 0
-		dataPacket[1] = OPCODE_DATA
-		dataPacket[2] = byte(blockNum >> 8)
-		dataPacket[3] = byte(blockNum)
-		copy(dataPacket[4:], buffer[:bytesRead])
+		// TODO: Build Data Packet
 
-		if _, err = conn.WriteToUDP(dataPacket, addr); err != nil {
-			return err
-		}
+		// TODO: Send Data Packet
+
+		// -- handle ack -- //
 
 		///////[ ACK PACKET ]/////////
 		// [ 2 bytes ] [ 2 bytes ] //
@@ -82,7 +70,9 @@ func SendFile(conn *net.UDPConn, addr *net.UDPAddr, filename string) (err error)
 			return err
 		}
 
-		if ack[1] != OPCODE_ACK || ack[2] != byte(blockNum>>8) || ack[3] != byte(blockNum) {
+		opcode := binary.BigEndian.Uint16(ack[:2])
+
+		if opcode != OPCODE_ACK || ack[2] != byte(blockNum>>8) || ack[3] != byte(blockNum) {
 			return fmt.Errorf("invalid ACK received: %v", ack)
 		}
 
