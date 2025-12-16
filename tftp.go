@@ -99,9 +99,8 @@ func Serve(options TFTPOptions) (quit chan bool, err error) {
 		}
 
 		var (
-			buffer   []byte = make([]byte, 1024)
-			filename string
-			log      *logger.Logger = logger.NewLogger().SetPrefix("[TFTP]", logger.BoldPurple).IncludeTimestamp()
+			buffer []byte         = make([]byte, 1024)
+			log    *logger.Logger = logger.NewLogger().SetPrefix("[TFTP]", logger.BoldPurple).IncludeTimestamp()
 		)
 
 		log.Status("Server started")
