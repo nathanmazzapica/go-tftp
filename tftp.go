@@ -142,23 +142,21 @@ func Serve(options TFTPOptions) (quit chan bool, err error) {
 				// Why?: Testing, clarity
 				opcode := binary.BigEndian.Uint16(buffer[:2])
 
-				// TODO: switch case statement
-				if opcode == OPCODE_RRQ {
-					if filename, _, err = ParseRQQRequest(buffer[:bytesRead]); err != nil {
-						log.Errorf("Failed to parse RRQ request for %s: %s\n", clientAddr.String(), err.Error())
-						continue
-					}
-
-					var fPath string = path.Join(options.RootDir, filename)
-					log.Warningf("Received RRQ request for %s from %s\n", fPath, clientAddr.String())
-
-					if !strings.HasPrefix(fPath, options.RootDir) {
-						SendError(conn, addr, 1, "File not found")
-					} else if err = SendFile(conn, clientAddr, fPath); err != nil {
-						log.Errorf("Failed to send file: %s\n", err.Error())
-					} else {
-						log.Successf("File %s sent to %s\n", filename, clientAddr.String())
-					}
+				switch opcode {
+				case OPCODE_RRQ:
+					log.Basicf("processing RRQ")
+				case OPCODE_WRQ:
+					log.Basicf("processing WRQ")
+				case OPCODE_DATA:
+					log.Basicf("processing DATA OP")
+				case OPCODE_ACK:
+					log.Basicf("processing ACK")
+				case OPCODE_ERROR:
+					log.Basicf("processing ERROR")
+				default:
+					log.Warningf("received invalid op code: %d", opcode)
+					// send ERROR 4 Illegal TFTP operation
+					continue
 				}
 			}
 		}
