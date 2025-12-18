@@ -4,6 +4,24 @@ import (
 	"encoding/binary"
 )
 
+// buildReadRequestPacket creates a TFTP ReadRequest packet as defined in [RFC 1350]
+//
+// [RFC 1350]: https://datatracker.ietf.org/doc/html/rfc1350#autoid-5
+func buildReadRequestPacket(filename, mode string) (packet []byte) {
+	packetLength := 4 + len(filename) + len(mode)
+	packet = make([]byte, packetLength)
+
+	binary.BigEndian.PutUint16(packet[0:2], OPCODE_RRQ)
+	copy(packet[2:], []byte(filename))
+	offset := 2 + len(filename)
+	packet[offset] = 0x00
+	copy(packet[offset+1:], []byte(mode))
+
+	packet[packetLength-1] = 0x00
+
+	return packet
+}
+
 // buildDataPacket creates a TFTP data packet as defined in [RFC 1350]
 //
 // [RFC 1350]: https://datatracker.ietf.org/doc/html/rfc1350#autoid-5

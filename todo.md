@@ -17,7 +17,7 @@
 
 ## Operations
 
-### OPCODE 01/02 READ/WRITE
+### OPCODE 01/02 READ/WRITE REQUEST
 
 #### Packet Format
            2 bytes    string   1 byte     string   1 byte
@@ -28,7 +28,8 @@
 `0` represents a null terminator
 
 ### OPCODE 03 DATA
-
+The Data operation transfers data in 512 byte chunks.
+A data transfer with < 512 bytes of data signifies the transfer is complete
 #### Packet Format
           2 bytes    2 bytes       n bytes
           ---------------------------------
