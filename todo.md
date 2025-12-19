@@ -83,7 +83,6 @@ Likewise, a client source code would only write the TFTP payload, the kernel wou
 data packet of < 512 bytes = transfer over
 
 [RFC 1350](https://datatracker.ietf.org/doc/html/rfc1350#autoid-2)
-zx;lcxkxzckjzkcjklcjzxklcjxzkcjxcjzxlkcjzxklcjzxkcjzxcjzxlcjzxlkcjzxlkcjzxlcjzxkcjzxlkcjzxklcjzxkcjzxlcjzxkl
 
 ```go
 // pseudocode-ish
