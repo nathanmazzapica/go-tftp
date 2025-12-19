@@ -77,22 +77,23 @@ func parseReadRequest(req []byte) (filename, mode string, err error) {
 	return filename, mode, nil
 }
 
-func transferFile(filename string, conn *net.UDPConn, addr *net.Addr) {
+// TODO: Implement different modes. Right now always octet/binary
+func transferFile(filename string, mode string, conn *net.UDPConn, addr *net.UDPAddr) error {
+	_ = mode // TODO: implement different modes
 	f, err := os.Open(filename)
 	if err != nil {
-		if errors.Is(os.ErrNotExist, err) {
-			// write error to socket
-		}
+		return err
 	}
 	defer f.Close()
 
-	blockNum := 1
+	blockNum := uint16(1)
 	for {
 
 		buffer := make([]byte, 512)
 		bytesRead, err := f.Read(buffer)
 
 		fmt.Printf("Read %d bytes from file\n", bytesRead)
+		fmt.Println(buffer[0])
 
 		if err != nil {
 			if errors.Is(io.EOF, err) {
@@ -102,30 +103,40 @@ func transferFile(filename string, conn *net.UDPConn, addr *net.Addr) {
 			break
 		}
 
-		packet := buildDataPacket(0, buffer)
+		packet := buildDataPacket(blockNum, buffer[:bytesRead])
 		buffer = nil
 
 		err = sendPacket(packet, conn, addr)
 		if err != nil {
-			fmt.Printf("%v", err)
+			return err
 		}
-
-		// wait for ack
 
 		// increment blocknum
-		if bytesRead < 512 {
+		if bytesRead == 512 {
 			blockNum++
+			// wait for ack
+			ack := make([]byte, 4)
+
+			_, _, err = conn.ReadFromUDP(ack)
+			if err != nil {
+				fmt.Println(err)
+			}
 			continue
 		}
+
 		// data < 512 signals completion
 		break
 	}
-
-	fmt.Println("Transfer complete")
+	return nil
 
 }
 
-func sendPacket(packet []byte, conn *net.UDPConn, addr *net.Addr) error {
-	_, err := conn.Write(packet)
+func sendError(err error, errCode uint16, conn *net.UDPConn, addr *net.UDPAddr) error {
+	packet := buildErrorPacket(errCode, err.Error())
+	return sendPacket(packet, conn, addr)
+}
+
+func sendPacket(packet []byte, conn *net.UDPConn, addr *net.UDPAddr) error {
+	_, err := conn.WriteTo(packet, addr)
 	return err
 }

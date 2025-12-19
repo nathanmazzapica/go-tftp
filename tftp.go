@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"path"
 	"time"
 
 	"github.com/z46-dev/go-logger"
@@ -16,6 +17,7 @@ type TFTPOptions struct {
 }
 
 type TFTPServer struct {
+	rootDir    string
 	log        *logger.Logger
 	addr       *net.UDPAddr
 	conn       *net.UDPConn
@@ -42,7 +44,9 @@ func NewTFTPServer(options *TFTPOptions) (*TFTPServer, error) {
 	}
 
 	server := &TFTPServer{
+		rootDir:    options.RootDir,
 		log:        logger.NewLogger().SetPrefix("[TFTP]", logger.BoldPurple).IncludeTimestamp(),
+		addr:       addr,
 		conn:       conn,
 		readBuffer: make([]byte, 2048),
 	}
@@ -52,9 +56,8 @@ func NewTFTPServer(options *TFTPOptions) (*TFTPServer, error) {
 
 func (s *TFTPServer) ListenAndServe(ctx context.Context) error {
 	for {
-		fmt.Printf("listening\n")
+		s.log.Basicf("Listening...\n")
 		select {
-		// TODO: Use context instead
 		case <-ctx.Done():
 			s.log.Status("Server stopped due to quit signal")
 			return nil
@@ -90,17 +93,41 @@ func (s *TFTPServer) ListenAndServe(ctx context.Context) error {
 
 			switch opcode {
 			case OPCODE_RRQ:
-				s.log.Basicf("processing RRQ")
+				s.log.Basicf("processing RRQ\n")
 				// parse request
-				//transferFile()
+				filename, mode, err := parseReadRequest(s.readBuffer)
+				if err != nil {
+					s.log.Errorf("error parsing read request packet: %v", err)
+					continue
+				}
+
+				s.log.Basicf("transfering %s to %v\n", filename, clientAddr)
+
+				filepath := path.Join(s.rootDir, filename)
+
+				timestampStart := time.Now()
+
+				tempAddr, err := net.ResolveUDPAddr("udp4", ":0")
+				tempConn, err := net.ListenUDP("udp4", tempAddr)
+
+				err = transferFile(filepath, mode, tempConn, clientAddr)
+				if err != nil {
+					s.log.Errorf("%v\n", err)
+					err := sendError(err, 0, tempConn, clientAddr)
+					if err != nil {
+						s.log.Errorf("failed to send error packet. error: %v\n", err)
+					}
+				}
+				duration := time.Now().Sub(timestampStart)
+				s.log.Basicf("Transfer complete in %v\n", duration)
 			case OPCODE_WRQ:
-				s.log.Basicf("processing WRQ")
+				s.log.Basicf("processing WRQ\n")
 			case OPCODE_DATA:
-				s.log.Basicf("processing DATA OP")
+				s.log.Basicf("processing DATA OP\n")
 			case OPCODE_ACK:
-				s.log.Basicf("processing ACK")
+				s.log.Basicf("processing ACK\n")
 			case OPCODE_ERROR:
-				s.log.Basicf("processing ERROR")
+				s.log.Basicf("processing ERROR\n")
 			default:
 				s.log.Warningf("received invalid op code: %d", opcode)
 				// send ERROR 4 Illegal TFTP operation
