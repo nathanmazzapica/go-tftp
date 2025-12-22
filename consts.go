@@ -15,4 +15,6 @@ const (
 	OPCODE_ACK uint16 = 4
 	// Error
 	OPCODE_ERROR uint16 = 5
+
+	MODE_OCTET = "octet"
 )
