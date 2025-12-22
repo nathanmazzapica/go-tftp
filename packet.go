@@ -2,6 +2,7 @@ package gotftp
 
 import (
 	"encoding/binary"
+	"fmt"
 )
 
 // buildReadRequestPacket creates a TFTP ReadRequest packet as defined in [RFC 1350]
@@ -48,6 +49,17 @@ func buildAckPacket(blockNumber uint16) (packet []byte) {
 	binary.BigEndian.PutUint16(packet[2:4], blockNumber)
 
 	return packet
+}
+
+// parseAckPacket extracts the block number from the ack packet
+func parseAckPacket(packet []byte) (blockNumber uint16, err error) {
+	if len(packet) != 4 {
+		return 0, fmt.Errorf("invalid ack packet: %v\n", packet)
+	}
+
+	blockNumber = binary.BigEndian.Uint16(packet[2:4])
+
+	return
 }
 
 // buildErrorPacket creates a TFTP error packet as defined in [RFC 1350]
