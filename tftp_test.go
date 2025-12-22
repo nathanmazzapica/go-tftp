@@ -2,7 +2,11 @@ package gotftp
 
 import (
 	"bytes"
+	"net"
+	"os"
+	"path"
 	"testing"
+	"time"
 )
 
 func TestTFTP_buildErrorPacket(t *testing.T) {
@@ -138,7 +142,7 @@ func TestTFTP_parseReadRequest(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		filename, mode, err := parseReadRequest(tc.packet)
+		filename, mode, err := parseReadRequest(tc.packet, "")
 		t.Log(tc.name)
 
 		if tc.wantErr {
@@ -164,4 +168,70 @@ func TestTFTP_parseReadRequest(t *testing.T) {
 			)
 		}
 	}
+}
+
+func TestTFTP_RetryOnAckTimeout(t *testing.T) {
+	// CREATE TEST SERVER CONNECTION
+	serverAddr, err := net.ResolveUDPAddr("udp4", ":0")
+	if err != nil {
+		t.Fatalf("failed to start test server: %v", err)
+	}
+	serverConn, err := net.ListenUDP("udp4", serverAddr)
+	if err != nil {
+		t.Fatalf("failed to start test server: %v", err)
+	}
+	defer serverConn.Close()
+
+	// CREATE TEST FILE
+	testDir := t.TempDir()
+	testFilePath := path.Join(testDir, "test.txt")
+	f, err := os.Create(testFilePath)
+	if err != nil {
+		t.Fatalf("failed to create temp test file %v\n", err)
+	}
+	_, err = f.WriteString("hello, world")
+	if err != nil {
+		t.Fatalf("failed to populate temp test file %v\n", err)
+	}
+	f.Close()
+
+	// CREATE TEST CLIENT
+
+	clientConn, err := net.Dial("udp", serverConn.LocalAddr().String())
+	if err != nil {
+		t.Fatalf("failed to dial server: %v", err)
+	}
+	defer clientConn.Close()
+
+	clientAddr, err := net.ResolveUDPAddr("udp4", clientConn.LocalAddr().String())
+	if err != nil {
+		t.Fatalf("failed to get client addr: %v\n", err)
+	}
+
+	// CREATE TEST REQUEST PACKET
+	testReq := buildReadRequestPacket("test.txt", MODE_OCTET)
+	go func() {
+		processRRQ(testDir, testReq, serverConn, clientAddr)
+	}()
+
+	// TEST RETRY
+
+	buf := make([]byte, 1024)
+
+	clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_, err = clientConn.Read(buf)
+	if err != nil {
+		t.Fatalf("Did not receive first packet: %v", err)
+	}
+	t.Log("Received first packet. Intentionally IGNORING ACK to force retry...")
+
+	clientConn.SetReadDeadline(time.Now().Add(6 * time.Second))
+
+	n, err := clientConn.Read(buf)
+	if err != nil {
+		t.Fatalf("Server did not retry! We expected a duplicate packet: %v", err)
+	}
+
+	t.Logf("Success! Received retry packet: %v of %d bytes", buf[:n], n)
+
 }

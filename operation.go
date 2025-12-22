@@ -2,11 +2,12 @@ package gotftp
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
-	"io"
+	"log"
 	"net"
 	"os"
+	"path"
+	"time"
 )
 
 // parseReadRequest takes a raw request packet and extracts 'filename' and 'mode'.
@@ -16,7 +17,7 @@ import (
 // 1. missing null terminator for filename or mode
 //
 // 2. filename or mode exceed maximum lengths (1024 and 8 respectively)
-func parseReadRequest(req []byte) (filename, mode string, err error) {
+func parseReadRequest(req []byte, rootDir string) (filename, mode string, err error) {
 	// this means no string & missing NT
 	if len(req) < 4 {
 		return "", "", fmt.Errorf("rrq too short")
@@ -72,63 +73,92 @@ func parseReadRequest(req []byte) (filename, mode string, err error) {
 	}
 
 	filename = string(filenameBytes)
+	filename = path.Join(rootDir, filename)
 	mode = string(modeBytes)
 
 	return filename, mode, nil
 }
 
-// TODO: Implement different modes. Right now always octet/binary
-func transferFile(filename string, mode string, conn *net.UDPConn, addr *net.UDPAddr) error {
-	_ = mode // TODO: implement different modes
-	f, err := os.Open(filename)
+func processRRQ(rootDir string, req []byte, conn *net.UDPConn, clientAddr *net.UDPAddr) error {
+	filepath, mode, err := parseReadRequest(req, rootDir)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	_ = mode
 
-	blockNum := uint16(1)
+	f, err := os.Open(filepath)
+	if err != nil {
+		return err
+	}
+
+	var blockNum uint16
+	blockNum = 1
 	for {
+		data, err := readBlock(f, blockNum)
 
-		buffer := make([]byte, 512)
-		bytesRead, err := f.Read(buffer)
-
-		fmt.Printf("Read %d bytes from file\n", bytesRead)
-		fmt.Println(buffer[0])
-
-		if err != nil {
-			if errors.Is(io.EOF, err) {
-				// we're done sport
-			}
-			fmt.Printf("err: %v", err)
-			break
-		}
-
-		packet := buildDataPacket(blockNum, buffer[:bytesRead])
-		buffer = nil
-
-		err = sendPacket(packet, conn, addr)
+		err = transmitDataPacket(blockNum, data, conn, clientAddr)
 		if err != nil {
 			return err
 		}
 
-		// increment blocknum
-		if bytesRead == 512 {
-			blockNum++
-			// wait for ack
-			ack := make([]byte, 4)
+		if len(data) < 512 {
+			return nil
+		}
+	}
+}
 
-			_, _, err = conn.ReadFromUDP(ack)
-			if err != nil {
-				fmt.Println(err)
-			}
-			continue
+func readBlock(f *os.File, blockNum uint16) ([]byte, error) {
+	buffer := make([]byte, 512)
+	offset := int64((blockNum - 1) * BLOCK_SIZE)
+	bytesRead, err := f.ReadAt(buffer, offset)
+	return buffer[:bytesRead], err
+}
+
+func transmitDataPacket(blockNum uint16, data []byte, conn *net.UDPConn, addr *net.UDPAddr) error {
+	// === TRANSMIT BUFFER === //
+	var retryCount int
+	ack := make([]byte, 512)
+	packet := buildDataPacket(blockNum, data)
+
+	for {
+		conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+
+		// send the data
+		err := sendPacket(packet, conn, addr)
+		if err != nil {
+			log.Println(err)
+			return err
 		}
 
-		// data < 512 signals completion
-		break
+		n, _, err := conn.ReadFromUDP(ack)
+
+		if err == nil {
+			ackBlockNum, err := parseAckPacket(ack[:n])
+			if err != nil {
+				// client sent something unexpected
+				return fmt.Errorf("unexpected client response")
+			}
+
+			if ackBlockNum != blockNum {
+				// todo: handle this
+				fmt.Printf("Expecting #%d\nGot: #%d\n", blockNum, ackBlockNum)
+				return fmt.Errorf("blocknum mismatch handling not implemented")
+			}
+
+			break
+		}
+
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			retryCount++
+			if retryCount >= 3 {
+				return fmt.Errorf("timed out waiting for ack after 3 retries")
+			}
+			fmt.Println("timeout... resending packet")
+			continue
+		}
+		return err
 	}
 	return nil
-
 }
 
 func sendError(err error, errCode uint16, conn *net.UDPConn, addr *net.UDPAddr) error {
