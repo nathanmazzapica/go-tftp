@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"path"
 	"time"
 
 	"github.com/z46-dev/go-logger"
@@ -87,30 +86,22 @@ func (s *TFTPServer) ListenAndServe(ctx context.Context) error {
 				continue
 			}
 
+			req := s.readBuffer
+
 			// TODO: Move to getOPCODE?
 			// Why?: Testing, clarity
-			opcode := binary.BigEndian.Uint16(s.readBuffer[:2])
+			opcode := binary.BigEndian.Uint16(req[:2])
 
 			switch opcode {
 			case OPCODE_RRQ:
 				s.log.Basicf("processing RRQ\n")
-				// parse request
-				filename, mode, err := parseReadRequest(s.readBuffer)
-				if err != nil {
-					s.log.Errorf("error parsing read request packet: %v", err)
-					continue
-				}
-
-				s.log.Basicf("transfering %s to %v\n", filename, clientAddr)
-
-				filepath := path.Join(s.rootDir, filename)
 
 				timestampStart := time.Now()
 
 				tempAddr, err := net.ResolveUDPAddr("udp4", ":0")
 				tempConn, err := net.ListenUDP("udp4", tempAddr)
 
-				err = transferFile(filepath, mode, tempConn, clientAddr)
+				err = processRRQ(s.rootDir, req, tempConn, clientAddr)
 				if err != nil {
 					s.log.Errorf("%v\n", err)
 					err := sendError(err, 0, tempConn, clientAddr)
@@ -118,7 +109,7 @@ func (s *TFTPServer) ListenAndServe(ctx context.Context) error {
 						s.log.Errorf("failed to send error packet. error: %v\n", err)
 					}
 				}
-				duration := time.Now().Sub(timestampStart)
+				duration := time.Since(timestampStart)
 				s.log.Basicf("Transfer complete in %v\n", duration)
 			case OPCODE_WRQ:
 				s.log.Basicf("processing WRQ\n")
