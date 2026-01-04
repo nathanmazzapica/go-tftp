@@ -16,5 +16,6 @@ const (
 	// Error
 	OPCODE_ERROR uint16 = 5
 
-	MODE_OCTET = "octet"
+	MODE_OCTET    = "octet"
+	MODE_NETASCII = "netascii"
 )
