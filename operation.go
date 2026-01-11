@@ -101,14 +101,15 @@ func processRRQ(rootDir string, req []byte, conn *net.UDPConn, clientAddr *net.U
 			return err
 		}
 
-		if len(data) < 512 {
+		if len(data) < BLOCK_SIZE {
 			return nil
 		}
 	}
 }
 
+// TODO: reflect is ReadAt is even necessary. The cursor is already at the calculated offset.
 func readBlock(f *os.File, blockNum uint16) ([]byte, error) {
-	buffer := make([]byte, 512)
+	buffer := make([]byte, BLOCK_SIZE)
 	offset := int64((blockNum - 1) * BLOCK_SIZE)
 	bytesRead, err := f.ReadAt(buffer, offset)
 	return buffer[:bytesRead], err
@@ -117,7 +118,7 @@ func readBlock(f *os.File, blockNum uint16) ([]byte, error) {
 func transmitDataPacket(blockNum uint16, data []byte, conn *net.UDPConn, addr *net.UDPAddr) error {
 	// === TRANSMIT BUFFER === //
 	var retryCount int
-	ack := make([]byte, 512)
+	ack := make([]byte, BLOCK_SIZE)
 	packet := buildDataPacket(blockNum, data)
 
 	for {
