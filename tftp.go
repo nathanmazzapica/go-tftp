@@ -109,6 +109,7 @@ func (s *TFTPServer) ListenAndServe(ctx context.Context) error {
 						s.log.Errorf("failed to send error packet. error: %v\n", err)
 					}
 				}
+
 				duration := time.Since(timestampStart)
 				s.log.Basicf("Transfer complete in %v\n", duration)
 			case OPCODE_WRQ:
