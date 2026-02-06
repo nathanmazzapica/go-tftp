@@ -8,13 +8,8 @@ import (
 
 type Reader struct {
 	r *bufio.Reader
+	o *byte
 }
-
-const (
-	_CR  = '\r'
-	_LF  = '\n'
-	_NUL = 0
-)
 
 func NewReader(rd io.Reader) *Reader {
 	return &Reader{r: bufio.NewReader(rd)}
@@ -29,6 +24,12 @@ func NewReader(rd io.Reader) *Reader {
 // Read reads byte by byte from a filestream, converting OS specific line-endings into netascii compliant sequences
 func (nr *Reader) Read(p []byte) (int, error) {
 	n := 0
+
+	if nr.o != nil {
+		p[n] = *nr.o
+		n++
+		nr.clearOverflow()
+	}
 
 	for ; n < len(p); n++ {
 		b, err := nr.r.ReadByte()
@@ -51,6 +52,7 @@ func (nr *Reader) Read(p []byte) (int, error) {
 			if next[0] != _LF {
 				n++
 				if n == len(p) {
+					nr.overflow('\000')
 					return n, nil
 				}
 				p[n] = _NUL
@@ -58,6 +60,10 @@ func (nr *Reader) Read(p []byte) (int, error) {
 		case _LF:
 			p[n] = _CR
 			n++
+			if n == len(p) {
+				nr.overflow(_LF)
+				return n, nil
+			}
 			p[n] = _LF
 		default:
 			p[n] = b
@@ -65,4 +71,12 @@ func (nr *Reader) Read(p []byte) (int, error) {
 	}
 
 	return n, nil
+}
+
+func (nr *Reader) overflow(b byte) {
+	nr.o = &b
+}
+
+func (nr *Reader) clearOverflow() {
+	nr.o = nil
 }
